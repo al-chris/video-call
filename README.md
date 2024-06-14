@@ -1,2 +1,2 @@
 # video-call
-A simple webRTC video call implementation
+A simple webRTC video call implementation with peerjs
