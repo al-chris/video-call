@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Call App</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.3.2/peerjs.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; height: 100vh; }
+        #videos { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; width: 100%; }
+        video { width: 48%; margin: 1%; border: 3px solid black; }
+        #localVideo { position: absolute; width: 200px; height: 150px; top: 10px; left: 10px; z-index: 1; }
+        #controls { position: fixed; bottom: 0; width: 100%; background: rgba(0, 0, 0, 0.7); color: white; padding: 10px; text-align: center; }
+        button { padding: 10px; font-size: 16px; margin: 5px; border: none; background: none; color: white; cursor: pointer; }
+        #callId { position: fixed; top: 0; width: 100%; background: rgba(0, 0, 0, 0.5); color: white; text-align: center; padding: 5px; }
+        .copy-icon { cursor: pointer; margin-left: 10px; }
+        #notification { position: fixed; bottom: 50px; background-color: rgba(50, 50, 50, 0.9); color: white; border-radius: 5px; padding: 8px 20px; display: none; }
+        @media (max-width: 600px) {
+            video { width: 98%; }
+        }
+    </style>
+</head>
+<body>
+    <div id="callId">Call ID: <span id="peerIdDisplay"></span><i class="fas fa-clipboard copy-icon" onclick="copyToClipboard()"></i></div>
+    <div id="videos">
+        <video id="localVideo" autoplay muted></video>
+        <video id="remoteVideo" autoplay></video>
+    </div>
+    <div id="controls">
+        <button onclick="endCall()"><i class="fas fa-phone-slash"></i></button>
+        <button onclick="toggleMute()"><i class="fas fa-microphone-slash"></i></button>
+        Enter Peer ID: <input type="text" id="their-id">
+        <button id="callBtn"><i class="fas fa-phone"></i></button>
+    </div>
+    <div id="notification">Copied to clipboard!</div>
+
+    <script>
+        var localVideo = document.getElementById('localVideo');
+        var remoteVideo = document.getElementById('remoteVideo');
+        var peerIdDisplay = document.getElementById('peerIdDisplay');
+        var notification = document.getElementById('notification');
+    
+        // Define peer globally but initialize it inside the DOMContentLoaded or similar setup
+        var peer;
+    
+        // Ensure DOM is fully loaded before setting up peer and media streams
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize peer inside the event listener
+            peer = new Peer(undefined, {
+            // debug: 2,
+            // host: 'peerjs.com', // This should point to your Peer server if you host your own
+            // secure: true,
+            // path: '/myapp'
+        });
+
+            console.log("Attempting to initialize peer...");
+    
+            // Get user media and set up peer events
+            navigator.mediaDevices.getUserMedia({video: true, audio: true}).then(stream => {
+                localVideo.srcObject = stream;
+    
+                peer.on('open', id => {
+                    peerIdDisplay.textContent = id; // Display peer ID when peer is ready
+                    console.log("Peer initialized with ID:", id);
+                });
+    
+                peer.on('call', call => {
+                    call.answer(stream);
+                    call.on('stream', remoteStream => {
+                        remoteVideo.srcObject = remoteStream;
+                    });
+                });
+    
+                document.getElementById('callBtn').addEventListener('click', function() {
+                    const theirID = document.getElementById('their-id').value;
+                    const call = peer.call(theirID, stream);
+                    call.on('stream', function(remoteStream) {
+                        remoteVideo.srcObject = remoteStream;
+                    });
+                });
+            }).catch(error => {
+                console.error('Error accessing media devices.', error);
+            });
+        });
+    
+        function endCall() {
+            if (peer) {
+                peer.destroy();
+                peer = null; // Reset the peer variable to ensure it can be reinitialized later
+            }
+        }
+    
+        function toggleMute() {
+            var audioTracks = localVideo.srcObject.getAudioTracks();
+            if (audioTracks.length > 0) {
+                audioTracks[0].enabled = !audioTracks[0].enabled;
+            }
+        }
+    
+        function copyToClipboard() {
+            navigator.clipboard.writeText(peerIdDisplay.textContent).then(function() {
+                // Show notification
+                notification.style.display = 'block';
+                setTimeout(function() {
+                    notification.style.display = 'none';
+                }, 2000);
+            }, function(err) {
+                console.error('Could not copy text: ', err);
+            });
+        }
+    
+        // Draggable functionality for local video
+        localVideo.addEventListener('mousedown', function(event) {
+                event.preventDefault();
+                var shiftX = event.clientX - localVideo.getBoundingClientRect().left;
+                var shiftY = event.clientY - localVideo.getBoundingClientRect().top;
+    
+                function moveAt(pageX, pageY) {
+                    localVideo.style.left = pageX - shiftX + 'px';
+                    localVideo.style.top = pageY - shiftY + 'px';
+                }
+    
+                function onMouseMove(event) {
+                    moveAt(event.pageX, event.pageY);
+                }
+    
+                document.addEventListener('mousemove', onMouseMove);
+    
+                localVideo.addEventListener('mouseup', function() {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    localVideo.onmouseup = null;
+                });
+    
+                localVideo.ondragstart = function() {
+                    return false;
+                };
+            });
+    </script>
+    
+    
+</body>
+</html>
